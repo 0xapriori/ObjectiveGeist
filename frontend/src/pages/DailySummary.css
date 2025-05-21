@@ -1,0 +1,25 @@
+.daily-summaries-page {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.page-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  margin-bottom: 0.5rem;
+}
+
+.page-header p {
+  color: #666;
+}
+
+.no-summaries-message {
+  background-color: #f9f9f9;
+  padding: 2rem;
+  text-align: center;
+  border-radius: 5px;
+  color: #666;
+}
