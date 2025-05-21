@@ -1,0 +1,73 @@
+.App {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+  flex: 1;
+}
+
+a {
+  color: #333;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.error-message {
+  color: red;
+  text-align: center;
+  padding: 2rem;
+}
+
+.home-page section {
+  margin-bottom: 2rem;
+}
+
+.hero {
+  text-align: center;
+  padding: 2rem 1rem;
+  background-color: #f0f0f0;
+  border-radius: 5px;
+}
+
+.post-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.quick-link {
+  padding: 1rem;
+  background-color: #f0f0f0;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+.quick-link:hover {
+  background-color: #e0e0e0;
+  text-decoration: none;
+}
+
+.view-all-link {
+  text-align: right;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .post-grid, .links-grid {
+    grid-template-columns: 1fr;
+  }
+}
