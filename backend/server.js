@@ -2,7 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const { GoogleGenerativeAI } = require('@google/generative-ai');  // ← This line
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
 const app = express();
@@ -12,11 +12,9 @@ app.use(express.json());
 // Connect to MongoDB Atlas
 mongoose.connect(process.env.MONGODB_URI);
 
-// Configure OpenAI
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-const openai = new OpenAIApi(configuration);
+// Configure Google Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
 // Models
 const Post = mongoose.model('Post', {
@@ -43,7 +41,6 @@ const DailySummary = mongoose.model('DailySummary', {
 // Fetch latest posts from research.anoma.net
 async function fetchLatestPosts() {
   try {
-    // Discourse API endpoint for latest posts
     const response = await axios.get('https://research.anoma.net/latest.json');
     return response.data.topic_list.topics;
   } catch (error) {
@@ -63,34 +60,28 @@ async function fetchPost(postId) {
   }
 }
 
-// Generate ELI5 summary using OpenAI
+// Generate ELI5 summary using Google Gemini
 async function generateEli5Summary(content) {
   try {
-    const response = await openai.createChatCompletion({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant that explains complex topics in simple terms. Provide an ELI5 (Explain Like I'm 5) summary that a non-technical person would understand."
-        },
-        {
-          role: "user",
-          content: `Please provide an ELI5 summary of the following text from the Anoma Research Forum:\n\n${content}`
-        }
-      ],
-      max_tokens: 300,
-    });
-    return response.data.choices[0].message.content;
+    const cleanContent = content.replace(/<[^>]*>/g, '').substring(0, 3000);
+    
+    const prompt = `Please provide an ELI5 (Explain Like I'm 5) summary of this technical post from the Anoma Research Forum. Make it simple and easy to understand for non-technical people:
+
+${cleanContent}`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    
+    return response.text();
   } catch (error) {
     console.error('Error generating ELI5 summary:', error);
-    return "Unable to generate summary at this time.";
+    return "This post discusses technical aspects of Anoma's research. Check the original post for details.";
   }
 }
 
-// Generate daily summary
+// Generate daily summary using Google Gemini
 async function generateDailySummary(date) {
   try {
-    // Find all posts from the given date
     const startDate = new Date(date);
     startDate.setHours(0, 0, 0, 0);
     
@@ -105,32 +96,18 @@ async function generateDailySummary(date) {
       return null;
     }
     
-    // Extract post contents
     const postContents = posts.map(post => post.title + ": " + post.eli5Summary).join("\n\n");
     
-    // Generate summary using OpenAI
-    const response = await openai.createChatCompletion({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant that creates concise and informative daily summaries."
-        },
-        {
-          role: "user",
-          content: `Create a one-paragraph summary of all the following Anoma research posts from ${date.toDateString()}:\n\n${postContents}`
-        }
-      ],
-      max_tokens: 250,
-    });
+    const prompt = `Create a one-paragraph summary of all the following Anoma research posts from ${date.toDateString()}:\n\n${postContents}`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
     
-    // Get unique authors
     const uniqueAuthors = [...new Set(posts.map(post => post.authorUsername))];
     
-    // Create and save the daily summary
     const dailySummary = new DailySummary({
       date: startDate,
-      summary: response.data.choices[0].message.content,
+      summary: response.text(),
       postIds: posts.map(post => post.id),
       uniqueAuthors: uniqueAuthors,
     });
@@ -169,27 +146,16 @@ app.get('/api/threads/:threadId', async (req, res) => {
   try {
     const posts = await Post.find({ threadId: req.params.threadId }).sort({ createdAt: 1 });
     
-    // If there are multiple posts in the thread, generate a thread summary
     let threadSummary = null;
     if (posts.length > 1) {
       const postContents = posts.map(post => post.eli5Summary).join("\n\n");
       
-      const response = await openai.createChatCompletion({
-        model: "gpt-4",
-        messages: [
-          {
-            role: "system",
-            content: "You are a helpful assistant that creates thread summaries."
-          },
-          {
-            role: "user",
-            content: `Create a concise summary of this entire thread from the Anoma Research Forum:\n\n${postContents}`
-          }
-        ],
-        max_tokens: 300,
-      });
+      const prompt = `Create a concise summary of this entire thread from the Anoma Research Forum:\n\n${postContents}`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
       
-      threadSummary = response.data.choices[0].message.content;
+      threadSummary = response.text();
     }
     
     res.json({ posts, threadSummary });
@@ -227,7 +193,6 @@ app.get('/api/categories/:category', async (req, res) => {
 
 app.get('/api/stats/users', async (req, res) => {
   try {
-    // Get user activity stats over time
     const users = await Post.aggregate([
       {
         $group: {
@@ -259,7 +224,6 @@ app.get('/api/stats/users', async (req, res) => {
 
 app.get('/api/stats/daily', async (req, res) => {
   try {
-    // Get post counts by day
     const dailyStats = await Post.aggregate([
       {
         $group: {
@@ -293,26 +257,21 @@ async function updatePosts() {
     const latestPosts = await fetchLatestPosts();
     
     for (const topicInfo of latestPosts) {
-      // Check if post already exists
       const existingPost = await Post.findOne({ id: topicInfo.id });
       if (existingPost) {
         continue;
       }
       
-      // Fetch full post data
       const postData = await fetchPost(topicInfo.id);
       if (!postData) {
         continue;
       }
       
-      // Process post content (first post in the thread)
       const firstPost = postData.post_stream.posts[0];
-      const content = firstPost.cooked; // HTML content
+      const content = firstPost.cooked;
       
-      // Generate ELI5 summary
       const eli5Summary = await generateEli5Summary(content);
       
-      // Save to database
       const post = new Post({
         id: topicInfo.id,
         title: topicInfo.title,
@@ -331,7 +290,6 @@ async function updatePosts() {
       console.log(`Added post: ${topicInfo.title}`);
     }
     
-    // Generate daily summary for today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
