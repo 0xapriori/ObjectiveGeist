@@ -1,0 +1,10 @@
+.app-footer {
+  background-color: #f5f5f5;
+  padding: 1rem 0;
+  text-align: center;
+  margin-top: auto;
+}
+
+.app-footer a {
+  color: #666;
+}
