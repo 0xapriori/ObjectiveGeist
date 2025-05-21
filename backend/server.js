@@ -2,7 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const { Configuration, OpenAIApi } = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');  // ← This line
 require('dotenv').config();
 
 const app = express();
